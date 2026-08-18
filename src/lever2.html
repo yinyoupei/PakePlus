@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>杠杆平衡演示器2</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='10' width='28' height='4' rx='2' fill='%23C48B5D'/%3E%3Cpolygon points='16,4 12,12 20,12' fill='%23f3a712'/%3E%3Cline x1='6' y1='14' x2='6' y2='22' stroke='%23999' stroke-width='1.5'/%3E%3Crect x='3' y='22' width='6' height='6' rx='1' fill='%234a8cf7'/%3E%3Cline x1='26' y1='14' x2='26' y2='8' stroke='%23e74c3c' stroke-width='2'/%3E%3Cpolygon points='26,5 22,11 30,11' fill='%23e74c3c'/%3E%3C/svg%3E">
+    <style>
+        /* 样式与之前完全相同，省略以节约篇幅，实际输出时保留 */
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background: #1a1e2a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            padding: 20px;
+        }
+        .presenter { width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; background: #0c0e14; border-radius: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.7); overflow: hidden; display: flex; flex-direction: row; position: relative; }
+        .canvas-wrap { flex: 1; display: flex; padding: 0; background: #000; overflow: hidden; position: relative; height: 100%; min-width: 0; }
+        canvas { width: 100%; height: 100%; display: block; background: #0a0c12; cursor: grab; touch-action: none; }
+        .right-panel { width: 140px; background: #12161f; border-left: 1px solid #f3a71240; display: flex; flex-direction: column; align-items: center; padding: 10px 4px; flex-shrink: 0; height: 100%; justify-content: center; gap: 6px; }
+        .right-panel .ctrl-title { color: #f5cb8b; font-size: 0.7rem; font-weight: 600; letter-spacing: 1px; opacity: 0.7; margin-bottom: 2px; }
+        .right-panel .slider-vertical-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; flex: 1; justify-content: center; min-height: 120px; max-height: 180px; padding: 4px 0; }
+        .right-panel .slider-vertical-wrap label { color: #f5e7d9; font-size: 0.6rem; font-weight: 400; letter-spacing: 0.5px; }
+        .right-panel .slider-vertical-wrap .val { color: #f3a712; font-weight: 600; font-size: 0.8rem; background: #1e2230; padding: 0 10px; border-radius: 12px; min-width: 36px; text-align: center; }
+        .custom-slider { position: relative; width: 30px; height: 120px; background: #2f3545; border-radius: 8px; cursor: pointer; touch-action: none; }
+        .custom-slider .track { position: absolute; left: 50%; top: 0; width: 4px; height: 100%; background: #4a5268; transform: translateX(-50%); border-radius: 2px; }
+        .custom-slider .thumb { position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; background: #f3a712; border-radius: 50%; transform: translate(-50%, -50%); cursor: grab; border: 2px solid #fff; z-index: 2; touch-action: none; }
+        .custom-slider .thumb:active { cursor: grabbing; }
+        .btn-reset { background: #2f3545; color: #f5cb8b; border: none; padding: 6px 0; border-radius: 24px; cursor: pointer; font-size: 0.6rem; font-weight: 500; transition: background 0.2s, transform 0.1s; width: 100%; text-align: center; }
+        .btn-reset:hover { background: #4a5268; color: #fff; }
+        .btn-reset:active { transform: scale(0.95); }
+        .btn-reset.primary { background: #f3a71220; border: 1px solid #f3a71260; color: #f3a712; }
+        .btn-reset.primary:hover { background: #f3a71240; }
+        .hint-group { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; padding: 4px 6px; margin-top: 2px; }
+        .hint-item { display: flex; align-items: center; gap: 6px; color: #ffffffcc; font-size: 0.6rem; font-weight: 300; }
+        .hint-item .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .hint-item .dot.red { background: #ff6b6b; }
+        .hint-item .dot.blue { background: #4dabf7; }
+        .title-bar { position: absolute; top: 0; left: 0; width: calc(100% - 140px); height: 32px; background: #1e2230dd; backdrop-filter: blur(4px); border-radius: 32px 0 0 0; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; z-index: 10; pointer-events: none; }
+        .title-left { display: flex; align-items: center; gap: 6px; }
+        .title-left .icon-lever { width: 22px; height: 22px; flex-shrink: 0; }
+        .title-left h2 { color: #f5e7d9; font-size: 0.95rem; font-weight: 500; letter-spacing: 1px; }
+        .title-left h2 small { font-size: 0.6rem; color: #f3a712; font-weight: 300; margin-left: 4px; }
+        .title-right { font-size: 0.55rem; color: #6a7080; letter-spacing: 0.5px; white-space: nowrap; opacity: 0.6; font-weight: 300; }
+        .title-right span { color: #6a7080; font-weight: 400; }
+        @media (max-width: 860px) {
+            .right-panel { width: 100px; padding: 6px 2px; }
+            .title-bar { width: calc(100% - 100px); height: 28px; padding: 0 8px; }
+            .title-left h2 { font-size: 0.75rem; }
+            .title-left .icon-lever { width: 18px; height: 18px; }
+            .title-right { font-size: 0.45rem; }
+            .btn-reset { font-size: 0.5rem; padding: 4px 0; }
+            .right-panel .ctrl-title { font-size: 0.6rem; }
+            .custom-slider { height: 100px; width: 24px; }
+            .custom-slider .thumb { width: 16px; height: 16px; }
+            .hint-item { font-size: 0.5rem; }
+        }
+        @media (max-width: 600px) {
+            .right-panel { width: 70px; padding: 4px 2px; }
+            .title-bar { width: calc(100% - 70px); height: 24px; padding: 0 6px; }
+            .title-left h2 { font-size: 0.6rem; }
+            .title-left .icon-lever { width: 14px; height: 14px; }
+            .title-right { font-size: 0.4rem; }
+            .btn-reset { font-size: 0.4rem; padding: 2px 0; }
+            .right-panel .slider-vertical-wrap .val { font-size: 0.6rem; min-width: 24px; }
+            .custom-slider { height: 70px; width: 20px; }
+            .custom-slider .thumb { width: 14px; height: 14px; }
+            .hint-item { font-size: 0.45rem; }
+            .hint-item .dot { width: 8px; height: 8px; }
+        }
+    </style>
+</head>
+<body>
+<div class="presenter">
+    <div class="title-bar">
+        <div class="title-left">
+            <svg class="icon-lever" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="12" width="28" height="4" rx="2" fill="#C48B5D" />
+                <polygon points="6,12 2,20 10,20" fill="#f3a712" />
+                <line x1="16" y1="16" x2="16" y2="22" stroke="#999" stroke-width="1.5" />
+                <rect x="13" y="22" width="6" height="6" rx="1" fill="#4a8cf7" />
+                <line x1="26" y1="12" x2="26" y2="6" stroke="#e74c3c" stroke-width="2" />
+                <polygon points="26,2 22,8 30,8" fill="#e74c3c" />
+            </svg>
+            <h2>杠杆平衡演示器 <small>2</small></h2>
+        </div>
+        <div class="title-right">
+            设计：<span>尹老师</span> ｜ 玉峰学校
+        </div>
+    </div>
+
+    <div class="canvas-wrap">
+        <canvas id="leverCanvas" width="1280" height="720"></canvas>
+    </div>
+
+    <div class="right-panel">
+        <div class="ctrl-title">杠杆控制</div>
+        <button id="btnResetTheta" class="btn-reset primary">↺ 水平复位</button>
+        <div class="slider-vertical-wrap">
+            <label>倾斜角度 θ</label>
+            <div class="custom-slider" id="customSlider">
+                <div class="track"></div>
+                <div class="thumb" id="sliderThumb"></div>
+            </div>
+            <span class="val" id="thetaVal">0°</span>
+        </div>
+        <button id="btnResetPhi" class="btn-reset">↑ F₂竖直向上</button>
+        <button id="btnPerpPhi" class="btn-reset primary">⊥ F₂垂直杠杆</button>
+
+        <div class="hint-group">
+            <div class="hint-item">
+                <span class="dot red"></span>
+                <span>调F₂作用点</span>
+            </div>
+            <div class="hint-item">
+                <span class="dot blue"></span>
+                <span>调节F₂方向</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /**
+     * 作品名称：杠杆平衡演示器
+     * 作    者：尹有培
+     * 单    位：泸县牛滩镇玉峰学校
+     * 创建日期：2026年6月
+     * 版权声明：本作品为原创，保留所有权利
+     *
+     * 本版本调整了 θ 的符号定义：
+     *   θ > 0  → 右端向上（逆时针旋转，画布 y 向下，sinθ 为负时右端向下？）
+     *   注意：此处我们修改为 θ 正表示右端向上，以符合物理直觉。
+     *   杠杆绘制时使用 -sin(thetaRad) 使得 θ 正时右端向上。
+     *   滑块映射：thetaDeg = 30 - percent * 60，滑块向下滑时 θ 减小（从 +30 到 -30），右端向下对应 θ 为负。
+     */
+    (function() {
+        'use strict';
+        // ===================== 物理参数 =====================
+        const LEVER_LEN_M = 0.90;        // 杠杆总长 0.9m
+        const F1_FIXED = 300.0;          // 阻力 300N
+        const L1_M = 0.30;               // 阻力作用点距支点 0.3m
+        const MIN_RATIO = 0.30 / 0.90;   // 动力作用点最小比例 1/3
+        const MAX_RATIO = 1.0;           // 动力作用点最大比例（端点）
+
+        // ===================== DOM 绑定 =====================
+        const canvas = document.getElementById('leverCanvas');
+        const ctx = canvas.getContext('2d');
+        const W = 1280, H = 720;
+        canvas.width = W; canvas.height = H;
+
+        const btnResetTheta = document.getElementById('btnResetTheta');
+        const btnResetPhi = document.getElementById('btnResetPhi');
+        const btnPerpPhi = document.getElementById('btnPerpPhi');
+        const thetaVal = document.getElementById('thetaVal');
+        const slider = document.getElementById('customSlider');
+        const thumb = document.getElementById('sliderThumb');
+
+        // ===================== 状态变量 =====================
+        let thetaDeg = 0;
+        let phiDeg = 90;
+        let posRatio = MAX_RATIO;
+        let F2_current = 50.0;
+        let L1_display = 0.0;
+        let L2_display = 0.0;
+
+        let isDraggingPos = false;
+        let isDraggingAng = false;
+        let rafId = null;
+        let isDraggingSlider = false;
+
+        // ===================== 坐标常量 =====================
+        const WALL_X = 90;
+        const PIVOT_Y = 360;
+        const LEVER_PX = 934;
+        const SCALE = LEVER_PX / LEVER_LEN_M;
+
+        // ===================== 工具函数 =====================
+        function degToRad(d) { return d * Math.PI / 180; }
+        function radToDeg(r) { return r * 180 / Math.PI; }
+        function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
+
+        // ===================== 物理计算 =====================
+        function computePhysics() {
+            const thetaRad = degToRad(thetaDeg);
+            const phiRad = degToRad(phiDeg);
+
+            // 阻力臂：L1 = L1_M * cosθ（θ 正为右端向上，cosθ 仍为正）
+            L1_display = L1_M * Math.cos(thetaRad);
+            if (L1_display < 0.001) L1_display = 0.001;
+
+            const d = posRatio * LEVER_LEN_M;
+            const angleDiff = phiRad - thetaRad;
+            L2_display = Math.abs(d * Math.sin(angleDiff));
+            if (L2_display < 0.001) L2_display = 0.001;
+
+            F2_current = (F1_FIXED * L1_display) / L2_display;
+            if (F2_current > 5000) F2_current = 5000;
+            if (F2_current < 0.1) F2_current = 0.1;
+        }
+
+        // ===================== 刷新 =====================
+        function refreshAll() {
+            computePhysics();
+            thetaVal.textContent = thetaDeg.toFixed(1) + '°';
+            try {
+                const sliderHeight = slider.clientHeight;
+                const thumbSize = thumb.offsetHeight || 20;
+                if (sliderHeight > 0) {
+                    // 滑块映射：thetaDeg = 30 - percent * 60，向下滑 percent 增大，theta 减小
+                    const percent = (30 - thetaDeg) / 60; // 根据当前 theta 计算 percent
+                    const top = clamp(percent, 0, 1) * (sliderHeight - thumbSize);
+                    thumb.style.top = top + 'px';
+                }
+            } catch (e) {}
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(drawCanvas);
+        }
+
+        // ===================== 绘图 =====================
+        function drawCanvas() {
+            try {
+                ctx.clearRect(0, 0, W, H);
+                ctx.save();
+
+                // 背景网格
+                ctx.strokeStyle = "#2a2e3c";
+                ctx.lineWidth = 0.5;
+                for (let i = 0; i < W; i += 60) {
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
+                }
+
+                // 灰色墙面
+                const wallRight = WALL_X;
+                ctx.fillStyle = '#6b6b7a';
+                ctx.fillRect(0, 0, wallRight, H);
+                ctx.fillStyle = '#4a4a5a';
+                ctx.fillRect(wallRight - 2, 0, 3, H);
+
+                // 杠杆坐标：θ 正表示右端向上，因此 y 坐标使用 -sin(thetaRad)
+                const thetaRad = degToRad(thetaDeg);
+                const pivotX = WALL_X, pivotY = PIVOT_Y;
+                const endX = pivotX + LEVER_PX * Math.cos(thetaRad);
+                const endY = pivotY - LEVER_PX * Math.sin(thetaRad);  // 注意负号
+
+                // 阻力作用点（距支点0.3m，比例 = 0.3/0.9 = 1/3）
+                const resRatio = L1_M / LEVER_LEN_M;
+                const resX = pivotX + resRatio * LEVER_PX * Math.cos(thetaRad);
+                const resY = pivotY - resRatio * LEVER_PX * Math.sin(thetaRad);
+
+                // 动力作用点
+                const posX = pivotX + posRatio * LEVER_PX * Math.cos(thetaRad);
+                const posY = pivotY - posRatio * LEVER_PX * Math.sin(thetaRad);
+
+                // 力矩数值
+                const moment1 = F1_FIXED * L1_display;
+                const moment2 = F2_current * L2_display;
+                const labelY = 110;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.font = "bold 18px 'Segoe UI'";
+
+                const leftText = "F₁·L₁ = " + moment1.toFixed(2) + " N·m";
+                const lw = ctx.measureText(leftText).width;
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                const bx = WALL_X + 20, by = labelY - 18, bw = lw + 20, bh = 34;
+                ctx.beginPath();
+                ctx.roundRect ? ctx.roundRect(bx - 10, by, bw, bh, 8) : ctx.rect(bx - 10, by, bw, bh);
+                ctx.fill();
+                ctx.shadowColor = "black";
+                ctx.shadowBlur = 6;
+                ctx.fillStyle = "#2ecc71";
+                ctx.fillText(leftText, bx + lw / 2, labelY);
+                ctx.shadowBlur = 0;
+
+                const rightText = "F₂·L₂ = " + moment2.toFixed(2) + " N·m";
+                const rw = ctx.measureText(rightText).width;
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                const bx2 = W - 40 - rw, by2 = labelY - 18, bw2 = rw + 20, bh2 = 34;
+                ctx.beginPath();
+                ctx.roundRect ? ctx.roundRect(bx2 - 10, by2, bw2, bh2, 8) : ctx.rect(bx2 - 10, by2, bw2, bh2);
+                ctx.fill();
+                ctx.shadowColor = "black";
+                ctx.shadowBlur = 6;
+                ctx.fillStyle = "#f1c40f";
+                ctx.fillText(rightText, bx2 + rw / 2, labelY);
+                ctx.shadowBlur = 0;
+                ctx.textAlign = "left";
+                ctx.textBaseline = "alphabetic";
+
+                // 杠杆主体
+                ctx.shadowColor = "#C48B5D40";
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.moveTo(pivotX, pivotY - 8);
+                ctx.lineTo(endX, endY - 8);
+                ctx.lineWidth = 18;
+                ctx.strokeStyle = "#8a6b4a";
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.moveTo(pivotX, pivotY);
+                ctx.lineTo(endX, endY);
+                ctx.lineWidth = 12;
+                ctx.strokeStyle = "#C48B5D";
+                ctx.stroke();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#E8BC8A";
+                ctx.stroke();
+
+                // 刻度绘制（按实际距离每 0.1m 画刻度线，显示 0、0.3、0.6、0.9）
+                const step = 0.1;
+                // 法线方向（指向杠杆上方，因 y 取反，法线为 (-sinθ, -cosθ)？实际计算中我们取垂直方向）
+                // 为了简单，我们沿用之前的刻度绘制方式，但需调整 y 方向。
+                // 由于杠杆 y 坐标用了负 sin，刻度线的法线方向应为 (-sinθ, -cosθ)？稍复杂，我们简化：直接用杠杆方向向量 (cosθ, -sinθ) 旋转90°得到法线。
+                const nx = -Math.sin(thetaRad); // 与之前的 nx 相同
+                const ny = -Math.cos(thetaRad); // 注意这里由于 y 取反，法线 y 分量也取反
+                ctx.strokeStyle = "#f5e7d980";
+                ctx.lineWidth = 1.5;
+                ctx.fillStyle = "#f5e7d960";
+                ctx.font = "10px 'Segoe UI'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                for (let d = 0; d <= 0.9; d += step) {
+                    const frac = d / LEVER_LEN_M;
+                    const lx = pivotX + frac * LEVER_PX * Math.cos(thetaRad);
+                    const ly = pivotY - frac * LEVER_PX * Math.sin(thetaRad);
+                    const startX = lx + nx * 6;
+                    const startY = ly + ny * 6;
+                    const endX = lx + nx * 12;
+                    const endY = ly + ny * 12;
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+                    if (Math.abs(d - 0) < 0.001 || Math.abs(d - 0.3) < 0.001 ||
+                        Math.abs(d - 0.6) < 0.001 || Math.abs(d - 0.9) < 0.001) {
+                        const textX = lx + nx * 24;
+                        const textY = ly + ny * 24;
+                        ctx.fillText(d.toFixed(1) + "m", textX, textY);
+                    }
+                }
+
+                // 支点
+                ctx.fillStyle = "#3e424f";
+                ctx.beginPath();
+                ctx.arc(pivotX, pivotY, 14, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.fillStyle = "#f3a712";
+                ctx.shadowColor = "#f3a71280";
+                ctx.shadowBlur = 18;
+                ctx.beginPath();
+                ctx.arc(pivotX, pivotY, 7, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = "#ffeedd";
+                ctx.font = "bold 13px 'Segoe UI'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                ctx.fillText("支点", pivotX, pivotY - 18);
+                ctx.textAlign = "left";
+                ctx.textBaseline = "alphabetic";
+
+                // 阻力作用线（竖直向下，保持原样）
+                const extLine = 600;
+                ctx.beginPath();
+                ctx.moveTo(resX, pivotY - extLine);
+                ctx.lineTo(resX, pivotY + extLine);
+                ctx.strokeStyle = "#4a8cf7";
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([6, 8]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 阻力物体
+                const objectY = resY + 80;
+                ctx.beginPath();
+                ctx.moveTo(resX, resY + 6);
+                ctx.lineTo(resX, objectY);
+                ctx.strokeStyle = "#cccccc";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                const blockSize = 50;
+                ctx.fillStyle = "#4a8cf7";
+                ctx.shadowColor = "#4a8cf780";
+                ctx.shadowBlur = 16;
+                ctx.fillRect(resX - blockSize / 2, objectY, blockSize, blockSize);
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = "#2a6bd4";
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(resX - blockSize / 2, objectY, blockSize, blockSize);
+                ctx.fillStyle = "white";
+                ctx.font = "bold 15px 'Segoe UI'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("300N", resX, objectY + blockSize / 2 + 2);
+                ctx.textAlign = "left";
+                ctx.textBaseline = "alphabetic";
+
+                // ====== 动力部分 ======
+                const phiRad = degToRad(phiDeg);
+                const dirX = Math.cos(phiRad);
+                const dirY = -Math.sin(phiRad); // 物理向上对应画布 y 负
+                const arrowLen = 140;
+
+                // 动力作用线（延长至1200像素）
+                const extendLen = 1200;
+                ctx.beginPath();
+                ctx.moveTo(posX + dirX * extendLen, posY + dirY * extendLen);
+                ctx.lineTo(posX - dirX * extendLen, posY - dirY * extendLen);
+                ctx.strokeStyle = "#e74c3c";
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([6, 8]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 箭头
+                const tipX = posX + dirX * arrowLen;
+                const tipY = posY + dirY * arrowLen;
+                ctx.beginPath();
+                ctx.moveTo(posX, posY);
+                ctx.lineTo(tipX, tipY);
+                ctx.strokeStyle = "#e74c3c";
+                ctx.lineWidth = 5;
+                ctx.stroke();
+                const headLen = 28, headAngle = 0.6;
+                const angle = Math.atan2(dirY, dirX);
+                ctx.beginPath();
+                ctx.moveTo(tipX, tipY);
+                ctx.lineTo(tipX - headLen * Math.cos(angle - headAngle), tipY - headLen * Math.sin(angle - headAngle));
+                ctx.lineTo(tipX - headLen * Math.cos(angle + headAngle), tipY - headLen * Math.sin(angle + headAngle));
+                ctx.closePath();
+                ctx.fillStyle = "#e74c3c";
+                ctx.shadowColor = "#e74c3c80";
+                ctx.shadowBlur = 14;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // F₂大小标注
+                const extX = tipX + dirX * 20;
+                const extY = tipY + dirY * 20;
+                const perpX = -dirY, perpY = dirX;
+                const off = 15;
+                const labelX = extX + perpX * off;
+                const labelY2 = extY + perpY * off;
+                ctx.fillStyle = "#e74c3c";
+                ctx.font = "bold 17px 'Segoe UI'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("F₂=" + F2_current.toFixed(1) + "N", labelX, labelY2);
+
+                // ============================================================
+                // 角度标注：F₂ 与杠杆反向的夹角（0~180°）
+                // 正确的点积公式：反向向量 (-cosθ, sinθ)（因为 θ 取反了？）
+                // 注意：杠杆方向变为 (cosθ, -sinθ)，反向为 (-cosθ, sinθ)
+                // 动力方向 (cosφ, -sinφ)（画布坐标）
+                // 点积 = (-cosθ)*cosφ + sinθ*(-sinφ) = -cosθcosφ - sinθsinφ = -cos(θ-φ)
+                // 所以公式仍然适用
+                // ============================================================
+                const dot = -Math.cos(thetaRad) * Math.cos(phiRad) - Math.sin(thetaRad) * Math.sin(phiRad);
+                const clampedDot = clamp(dot, -1, 1);
+                let angleRad = Math.acos(clampedDot);
+                let angleDeg = radToDeg(angleRad);
+
+                // 显示位置：从作用点出发，介于杠杆反向与动力方向之间的夹角区域
+                // 杠杆反向角度 = thetaRad + π（但在画布中 θ 取反，所以需要调整）
+                // 简单起见，我们仍用之前的逻辑，因为点积公式已正确。
+                let thetaOpp = thetaRad + Math.PI;
+                let diff = phiRad - thetaOpp;
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                const mid = thetaOpp + diff / 2;
+                const dist = 35;
+                const angleLabelX = posX + Math.cos(mid) * dist;
+                const angleLabelY = posY - Math.sin(mid) * dist;
+                ctx.fillStyle = "#f39c12";
+                ctx.font = "bold 16px 'Segoe UI'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(angleDeg.toFixed(1) + "°", angleLabelX, angleLabelY);
+
+                ctx.textAlign = "left";
+                ctx.textBaseline = "alphabetic";
+
+                // ---- 动力臂 L₂（黄色） ----
+                const O_x = pivotX, O_y = pivotY;
+                const P_x = posX, P_y = posY;
+                const OPx = P_x - O_x, OPy = P_y - O_y;
+                const t = OPx * dirX + OPy * dirY;
+                const footX = P_x - t * dirX;
+                const footY = P_y - t * dirY;
+
+                ctx.beginPath();
+                ctx.moveTo(O_x, O_y);
+                ctx.lineTo(footX, footY);
+                ctx.strokeStyle = "#f1c40f";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                const midX2 = (O_x + footX) / 2;
+                const midY2 = (O_y + footY) / 2;
+                const segAngle = Math.atan2(footY - O_y, footX - O_x);
+                const off2 = 24;
+                const offX2 = -Math.sin(segAngle) * off2;
+                const offY2 = Math.cos(segAngle) * off2;
+                ctx.fillStyle = "#f1c40f";
+                ctx.font = "bold 18px 'Times New Roman'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("L₂=" + L2_display.toFixed(3) + "m", midX2 + offX2, midY2 + offY2);
+                ctx.textAlign = "left";
+                ctx.textBaseline = "alphabetic";
+
+                ctx.beginPath();
+                ctx.arc(footX, footY, 3, 0, 2 * Math.PI);
+                ctx.fillStyle = "#f1c40f";
+                ctx.fill();
+
+                // 阻力臂 L₁（绿色，后置绘制以置于顶层）
+                const l1FootX = resX, l1FootY = pivotY;
+                ctx.beginPath();
+                ctx.moveTo(pivotX, pivotY);
+                ctx.lineTo(l1FootX, l1FootY);
+                ctx.strokeStyle = "#2ecc71";
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                const r1 = 10;
+                ctx.beginPath();
+                ctx.moveTo(l1FootX - r1, l1FootY);
+                ctx.lineTo(l1FootX - r1, l1FootY + r1);
+                ctx.lineTo(l1FootX, l1FootY + r1);
+                ctx.strokeStyle = "#2ecc71";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                const midX1 = (pivotX + l1FootX) / 2;
+                const midY1 = pivotY + 22;
+                ctx.fillStyle = "#2ecc71";
+                ctx.font = "bold 18px 'Times New Roman'";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                ctx.fillText("L₁=" + L1_display.toFixed(3) + "m", midX1, midY1);
+                ctx.textAlign = "left";
+                ctx.textBaseline = "alphabetic";
+
+                // 拖拽手柄
+                ctx.beginPath();
+                ctx.arc(posX, posY, 14, 0, 2 * Math.PI);
+                ctx.fillStyle = "#ff6b6b";
+                ctx.shadowColor = "#ff6b6b80";
+                ctx.shadowBlur = 22;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(posX, posY, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = "white";
+                ctx.fill();
+
+                const handleX = (posX + tipX) / 2;
+                const handleY = (posY + tipY) / 2;
+                ctx.beginPath();
+                ctx.arc(handleX, handleY, 14, 0, 2 * Math.PI);
+                ctx.fillStyle = "#4dabf7";
+                ctx.shadowColor = "#4dabf780";
+                ctx.shadowBlur = 22;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(handleX, handleY, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = "white";
+                ctx.fill();
+
+                // 警告
+                if (L2_display < 0.005) {
+                    ctx.fillStyle = "#ffaa00";
+                    ctx.font = "bold 16px 'Segoe UI'";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "bottom";
+                    ctx.fillText("⚠ 力臂过小，F₂ 过大", posX, posY - 20);
+                    ctx.textAlign = "left";
+                    ctx.textBaseline = "alphabetic";
+                }
+
+                ctx.restore();
+            } catch (e) {
+                console.error('绘图异常:', e);
+                ctx.fillStyle = '#0a0c12';
+                ctx.fillRect(0, 0, W, H);
+            }
+        }
+
+        // ===================== 滑块交互 =====================
+        function getSliderY(clientY) {
+            const rect = slider.getBoundingClientRect();
+            const sliderTop = rect.top;
+            const sliderHeight = slider.clientHeight;
+            const thumbSize = thumb.offsetHeight || 20;
+            if (sliderHeight <= 0) return 0.5;
+            let y = clientY - sliderTop - thumbSize / 2;
+            y = clamp(y, 0, sliderHeight - thumbSize);
+            return y / (sliderHeight - thumbSize);
+        }
+
+        function updateSliderFromEvent(e) {
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            if (clientY === undefined) return;
+            const percent = getSliderY(clientY);
+            // 新映射：thetaDeg = 30 - percent * 60
+            thetaDeg = 30 - percent * 60;
+            thetaDeg = clamp(thetaDeg, -30, 30);
+            refreshAll();
+        }
+
+        function onSliderStart(e) { e.preventDefault(); isDraggingSlider = true; updateSliderFromEvent(e); }
+        function onSliderMove(e) { if (!isDraggingSlider) return; e.preventDefault(); updateSliderFromEvent(e); }
+        function onSliderEnd(e) { if (isDraggingSlider) isDraggingSlider = false; }
+
+        slider.addEventListener('pointerdown', onSliderStart);
+        window.addEventListener('pointermove', onSliderMove);
+        window.addEventListener('pointerup', onSliderEnd);
+        slider.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+
+        // ===================== 画布拖拽交互 =====================
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let clientX, clientY;
+            if (e.touches) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+                e.preventDefault();
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+        }
+
+        function getHandlePositions() {
+            const thetaRad = degToRad(thetaDeg);
+            const pivotX = WALL_X, pivotY = PIVOT_Y;
+            const posX = pivotX + posRatio * LEVER_PX * Math.cos(thetaRad);
+            const posY = pivotY - posRatio * LEVER_PX * Math.sin(thetaRad);
+            const phiRad = degToRad(phiDeg);
+            const dirX = Math.cos(phiRad), dirY = -Math.sin(phiRad);
+            const arrowLen = 140;
+            const midX = posX + dirX * (arrowLen / 2);
+            const midY = posY + dirY * (arrowLen / 2);
+            return { posX, posY, midX, midY };
+        }
+
+        function handleStart(e) {
+            e.preventDefault();
+            const { x, y } = getCanvasCoords(e);
+            const { posX, posY, midX, midY } = getHandlePositions();
+            if (Math.hypot(x - midX, y - midY) < 28) {
+                isDraggingAng = true;
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+            if (Math.hypot(x - posX, y - posY) < 28) {
+                isDraggingPos = true;
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+        }
+
+        function handleMove(e) {
+            e.preventDefault();
+            const { x, y } = getCanvasCoords(e);
+            const thetaRad = degToRad(thetaDeg);
+            const pivotX = WALL_X, pivotY = PIVOT_Y;
+
+            if (isDraggingPos) {
+                // 将鼠标投影到杠杆方向（注意 y 方向取反）
+                const dx = x - pivotX;
+                const dy = y - pivotY;
+                const leverDirX = Math.cos(thetaRad);
+                const leverDirY = -Math.sin(thetaRad); // 杠杆方向
+                let proj = dx * leverDirX + dy * leverDirY;
+                const minPix = MIN_RATIO * LEVER_PX;
+                const maxPix = MAX_RATIO * LEVER_PX;
+                proj = clamp(proj, minPix, maxPix);
+                let newRatio = proj / LEVER_PX;
+                newRatio = clamp(newRatio, MIN_RATIO, MAX_RATIO);
+                posRatio = newRatio;
+                refreshAll();
+            }
+
+            if (isDraggingAng) {
+                const posX = pivotX + posRatio * LEVER_PX * Math.cos(thetaRad);
+                const posY = pivotY - posRatio * LEVER_PX * Math.sin(thetaRad);
+                const dx = x - posX, dy = y - posY;
+                if (Math.hypot(dx, dy) < 2) return;
+                let newPhi = radToDeg(Math.atan2(-dy, dx)); // 物理角度
+                newPhi = clamp(newPhi, 5, 175);
+                phiDeg = newPhi;
+                refreshAll();
+            }
+        }
+
+        function handleEnd(e) {
+            if (isDraggingPos || isDraggingAng) {
+                isDraggingPos = false;
+                isDraggingAng = false;
+                canvas.style.cursor = 'grab';
+            }
+        }
+
+        canvas.addEventListener('pointerdown', handleStart);
+        window.addEventListener('pointermove', handleMove);
+        window.addEventListener('pointerup', handleEnd);
+        canvas.addEventListener('touchstart', function(e) { e.preventDefault(); }, { passive: false });
+
+        // ===================== 按钮事件 =====================
+        btnResetTheta.addEventListener('click', function() { thetaDeg = 0; refreshAll(); });
+        btnResetPhi.addEventListener('click', function() { phiDeg = 90; refreshAll(); });
+        btnPerpPhi.addEventListener('click', function() {
+            // F₂ 垂直于杠杆，且指向杠杆上方：φ = θ + 90°
+            let newPhi = thetaDeg + 90;
+            newPhi = ((newPhi % 360) + 360) % 360;
+            newPhi = clamp(newPhi, 5, 175);
+            phiDeg = newPhi;
+            refreshAll();
+        });
+
+        window.addEventListener('resize', refreshAll);
+
+        // ===================== 初始化 =====================
+        function init() {
+            thetaDeg = 0;
+            phiDeg = 90;
+            posRatio = MAX_RATIO;
+            refreshAll();
+        }
+        init();
+        console.log('✅ 杠杆平衡演示器2 已启动（θ符号已修正，垂直按钮方向正确）');
+    })();
+</script>
+</body>
+</html>
